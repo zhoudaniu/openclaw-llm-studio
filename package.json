@@ -1,0 +1,36 @@
+{
+  "name": "openclaw-llm-studio",
+  "version": "1.0.0",
+  "description": "OpenClaw - 大模型聚合平台 & 本地引擎管理",
+  "main": "main.js",
+  "author": "OpenClaw",
+  "license": "MIT",
+  "scripts": {
+    "start": "cross-env ELECTRON_RUN_AS_NODE=0 electron .",
+    "dev": "cross-env ELECTRON_RUN_AS_NODE=0 electron . --dev",
+    "build": "electron-builder --win dir",
+    "build:portable": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^28.3.3",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0"
+  },
+  "build": {
+    "appId": "com.openclaw.llm-studio",
+    "productName": "OpenClaw LLM Studio",
+    "directories": { "output": "builds" },
+    "files": [
+      "main.js", "preload.js", "src/**/*", "data/**/*",
+      "!data/openclaw.db"
+    ],
+    "win": {
+      "target": [{ "target": "dir", "arch": ["x64"] }],
+      "icon": "src/assets/icons/icon.ico"
+    },
+    "portable": { "artifactName": "OpenClaw-LLM-Studio-${version}-Portable.exe" }
+  }
+}
