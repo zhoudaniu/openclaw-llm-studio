@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, nativeTheme } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const { spawn, exec } = require('child_process');
 const http = require('http');
 const https = require('https');
@@ -802,10 +803,67 @@ function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
+// ============ 自动更新 ============
+function setupAutoUpdater() {
+  if (isDev) return; // dev 模式跳过
+
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('error', (err) => {
+    console.error('AutoUpdater error:', err);
+  });
+
+  autoUpdater.on('update-available', async (info) => {
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: '发现新版本',
+      message: `新版本 v${info.version} 已发布`,
+      detail: info.releaseNotes || '是否立即下载更新？',
+      buttons: ['稍后更新', '立即下载'],
+      defaultId: 1,
+      cancelId: 0,
+    });
+    if (result.response === 1) {
+      autoUpdater.downloadUpdate();
+    }
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setProgressBar(progress.percent / 100);
+    }
+  });
+
+  autoUpdater.on('update-downloaded', async () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setProgressBar(-1); // 清除进度条
+    }
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: '更新已就绪',
+      message: '新版本已下载完成',
+      detail: '是否立即重启并安装？',
+      buttons: ['稍后重启', '立即重启'],
+      defaultId: 1,
+      cancelId: 0,
+    });
+    if (result.response === 1) {
+      autoUpdater.quitAndInstall();
+    }
+  });
+
+  // 启动后延迟 3 秒检查更新，避免影响启动速度
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch(() => {});
+  }, 3000);
+}
+
 // ============ 生命周期 ============
 app.whenReady().then(() => {
   loadConfig();
   createWindow();
+  setupAutoUpdater();
   app.on('activate', () => { if (!mainWindow) createWindow(); });
 });
 

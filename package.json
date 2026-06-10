@@ -6,10 +6,11 @@
   "author": "OpenClaw",
   "license": "MIT",
   "scripts": {
-    "start": "cross-env ELECTRON_RUN_AS_NODE=0 electron .",
-    "dev": "cross-env ELECTRON_RUN_AS_NODE=0 electron . --dev",
-    "build": "electron-builder --win dir",
-    "build:portable": "electron-builder --win portable"
+    "start": "node start.js",
+    "dev": "node start.js --dev",
+    "build": "electron-builder --win --publish never",
+    "build:portable": "electron-builder --win portable --publish never",
+    "build:publish": "electron-builder --win --publish always"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
@@ -17,20 +18,45 @@
     "electron-builder": "^24.9.1"
   },
   "dependencies": {
-    "better-sqlite3": "^11.0.0"
+    "better-sqlite3": "^11.0.0",
+    "electron-updater": "^6.8.9"
   },
   "build": {
     "appId": "com.openclaw.llm-studio",
     "productName": "OpenClaw LLM Studio",
-    "directories": { "output": "builds" },
+    "publish": [{
+      "provider": "github",
+      "owner": "zhoudaniu",
+      "repo": "openclaw-llm-studio"
+    }],
+    "directories": {
+      "output": "builds"
+    },
     "files": [
-      "main.js", "preload.js", "src/**/*", "data/**/*",
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "data/**/*",
       "!data/openclaw.db"
     ],
     "win": {
-      "target": [{ "target": "dir", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "src/assets/icons/icon.ico"
     },
-    "portable": { "artifactName": "OpenClaw-LLM-Studio-${version}-Portable.exe" }
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "OpenClaw-LLM-Studio-${version}-Setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "OpenClaw-LLM-Studio-${version}-Portable.exe"
+    }
   }
 }
