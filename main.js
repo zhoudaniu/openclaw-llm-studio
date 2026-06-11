@@ -50,6 +50,7 @@ const DEFAULT_CONFIG = {
 
 let config = { ...DEFAULT_CONFIG };
 let engineProcesses = {}; // id -> ChildProcess
+let currentStreamReq = null; // 当前流式请求，用于取消
 
 function loadConfig() {
   try {
@@ -173,8 +174,13 @@ ipcMain.handle('chat:stream', async (e, { provider, model, messages, options }) 
   }
 
   console.log(`[chat:stream] provider=${provider}, model=${model}, url=${buildApiUrl(provider, prov)}`);
+  // Debug: 打印最后一条用户消息的前 200 字符
+  const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+  console.log(`[chat:stream] last user msg length: ${lastUserMsg?.content?.length}`);
+  console.log(`[chat:stream] last user msg (first 300): ${lastUserMsg?.content?.slice(0, 300)}`);
 
   return new Promise((resolve) => {
+    currentStreamReq = null; // 清除旧请求
     const url = buildApiUrl(provider, prov);
     const headers = buildHeaders(provider, prov);
     const body = buildRequestBody(provider, model, messages, { ...options, stream: true });
@@ -190,6 +196,7 @@ ipcMain.handle('chat:stream', async (e, { provider, model, messages, options }) 
       headers: { ...headers, 'Content-Type': 'application/json' },
       timeout: 120000,
     }, (res) => {
+      currentStreamReq = req; // 保存引用用于取消
       console.log(`[chat:stream] response status=${res.statusCode}, content-type=${res.headers['content-type']}`);
 
       if (res.statusCode !== 200) {
@@ -558,10 +565,16 @@ const ENGINE_PRESETS = {
   },
   openclaw: {
     name: '小龙虾 OpenClaw',
-    checkCmd: '',
-    installUrl: 'https://github.com/pjasicek/OpenClaw',
-    installHint: 'OpenClaw 是 Captain Claw 的开源重制版引擎。',
-    installMethod: 'manual',
+    checkCmd: 'where cherry-studio',
+    installUrl: 'https://github.com/CherryHQ/cherry-studio/releases/latest',
+    installHint: 'OpenClaw 本地推理引擎。推荐配合 Open WebUI (⭐70k+) 使用。\n一键部署将自动完成环境检查和安装。',
+    installMethod: 'exe',
+    hardwareCheck: true,
+    installDirs: [
+      path.join(process.env.LOCALAPPDATA || '', 'Programs', 'cherry-studio'),
+      path.join(process.env.PROGRAMFILES || '', 'Cherry Studio'),
+      path.join(process.env['PROGRAMFILES(X86)'] || '', 'Cherry Studio'),
+    ],
   },
 };
 
@@ -570,17 +583,32 @@ ipcMain.handle('engines:list', () => config.engines || []);
 // 检测引擎是否已安装
 ipcMain.handle('engines:detect', async (e, id) => {
   const preset = ENGINE_PRESETS[id];
-  if (!preset || !preset.checkCmd) return { installed: false, preset: preset || null };
+  if (!preset) return { installed: false, preset: null };
 
-  return new Promise((resolve) => {
-    exec(preset.checkCmd, { timeout: 10000 }, (err, stdout, stderr) => {
-      resolve({
-        installed: !err && err === null,
-        path: stdout?.trim() || '',
-        preset,
+  // 先用 checkCmd 检测
+  if (preset.checkCmd) {
+    const result = await new Promise((resolve) => {
+      exec(preset.checkCmd, { timeout: 10000 }, (err, stdout) => {
+        resolve({ installed: !err && err === null, path: stdout?.trim() || '' });
       });
     });
-  });
+    if (result.installed) return { ...result, preset };
+  }
+
+  // 额外检查安装路径（用于 openclaw 等）
+  if (preset.installDirs) {
+    for (const dir of preset.installDirs) {
+      if (dir && fs.existsSync(dir)) {
+        // 检查目录下是否有 exe 文件
+        const files = fs.readdirSync(dir).filter(f => f.endsWith('.exe'));
+        if (files.length > 0) {
+          return { installed: true, path: path.join(dir, files[0]), preset };
+        }
+      }
+    }
+  }
+
+  return { installed: false, path: '', preset };
 });
 
 // 一键安装引擎
@@ -758,6 +786,58 @@ ipcMain.handle('engines:status', () => {
   return result;
 });
 
+// 硬件能力检测
+ipcMain.handle('engines:hardwareCheck', async () => {
+  const execAsync = (cmd) => new Promise((resolve) => {
+    exec(cmd, { timeout: 15000, encoding: 'utf-8' }, (err, stdout) => {
+      resolve(err ? null : stdout?.trim());
+    });
+  });
+
+  // NVIDIA GPU
+  let gpu = { available: false, name: '未检测到', memory: '-' };
+  const gpuRaw = await execAsync('nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits');
+  if (gpuRaw) {
+    const parts = gpuRaw.split(',').map(s => s.trim());
+    gpu = { available: true, name: parts[0] || 'Unknown', memory: parts[1] ? `${parts[1]} MB` : '-' };
+  }
+
+  // Python
+  let python = { available: false, version: '未安装' };
+  const pyRaw = await execAsync('python --version');
+  if (pyRaw) {
+    python = { available: true, version: pyRaw.replace('Python ', '') };
+  }
+
+  // 内存
+  let memory = { total: '-', sufficient: false };
+  const memRaw = await execAsync('wmic OS get TotalVisibleMemorySize /value');
+  if (memRaw) {
+    const match = memRaw.match(/TotalVisibleMemorySize=(\d+)/);
+    if (match) {
+      const kb = parseInt(match[1]);
+      const gb = (kb / 1048576).toFixed(1);
+      memory = { total: `${gb} GB`, sufficient: kb >= 8388608 }; // >= 8GB
+    }
+  }
+
+  // 磁盘空间（C盘）
+  let disk = { free: '-', sufficient: false };
+  const diskRaw = await execAsync('wmic logicaldisk where "DeviceID=\'C:\'" get FreeSpace /value');
+  if (diskRaw) {
+    const match = diskRaw.match(/FreeSpace=(\d+)/);
+    if (match) {
+      const bytes = parseInt(match[1]);
+      const gb = (bytes / 1073741824).toFixed(1);
+      disk = { free: `${gb} GB`, sufficient: bytes >= 2147483648 }; // >= 2GB
+    }
+  }
+
+  const overall = python.available && memory.sufficient && disk.sufficient;
+
+  return { gpu, python, memory, disk, overall };
+});
+
 // --- 工具 ---
 ipcMain.handle('shell:openExternal', (e, url) => shell.openExternal(url));
 ipcMain.handle('clipboard:write', (e, text) => { clipboard.writeText(text); return true; });
@@ -778,6 +858,59 @@ ipcMain.handle('chat:export', async (e, conv) => {
 
   fs.writeFileSync(result.filePath, content, 'utf-8');
   return { ok: true, path: result.filePath };
+});
+
+// 停止流式输出
+ipcMain.handle('chat:stopStream', () => {
+  if (currentStreamReq) {
+    currentStreamReq.destroy();
+    currentStreamReq = null;
+    mainWindow?.webContents.send('chat:stream-done');
+    return { ok: true };
+  }
+  return { ok: false };
+});
+
+// 文件上传：打开文件选择对话框
+ipcMain.handle('chat:openFileDialog', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: '选择文件',
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      { name: '文本文件', extensions: ['txt','md','py','js','ts','jsx','tsx','json','csv','log','html','css','java','go','rs','cpp','c','h','yaml','yml','xml','sql','sh','bat','env','vue','toml','ini','cfg','conf'] },
+      { name: '所有文件', extensions: ['*'] },
+    ],
+  });
+  if (result.canceled) return { canceled: true };
+  return { paths: result.filePaths };
+});
+
+// 文件上传：读取文件内容
+ipcMain.handle('chat:readFiles', async (e, paths) => {
+  const MAX_SIZE = 20 * 1024 * 1024; // 20MB
+  const MAX_CHARS = 80000; // 约 25K-40K tokens，适配大多数模型
+  const results = [];
+  for (const p of paths) {
+    try {
+      const stat = fs.statSync(p);
+      if (stat.size > MAX_SIZE) {
+        results.push({ name: path.basename(p), size: stat.size, error: '文件过大（>20MB）', ext: path.extname(p) });
+        continue;
+      }
+      let content = fs.readFileSync(p, 'utf-8');
+      let truncated = false;
+      let readPercent = 100;
+      if (content.length > MAX_CHARS) {
+        readPercent = Math.round((MAX_CHARS / content.length) * 100);
+        content = content.slice(0, MAX_CHARS);
+        truncated = true;
+      }
+      results.push({ name: path.basename(p), size: stat.size, content, ext: path.extname(p), truncated, readPercent });
+    } catch (err) {
+      results.push({ name: path.basename(p), size: 0, error: err.message, ext: path.extname(p) });
+    }
+  }
+  return results;
 });
 
 // ============ 窗口创建 ============

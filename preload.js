@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('api', {
   // 聊天 API
   chatSend: (data) => ipcRenderer.invoke('chat:send', data),
   chatStream: (data) => ipcRenderer.invoke('chat:stream', data),
+  stopStream: () => ipcRenderer.invoke('chat:stopStream'),
   onStreamChunk: (cb) => ipcRenderer.on('chat:stream-chunk', (_, chunk) => cb(chunk)),
   onStreamDone: (cb) => ipcRenderer.on('chat:stream-done', () => cb()),
   offStreamChunk: () => ipcRenderer.removeAllListeners('chat:stream-chunk'),
@@ -34,6 +35,7 @@ contextBridge.exposeInMainWorld('api', {
   getEngineStatus: () => ipcRenderer.invoke('engines:status'),
   detectEngine: (id) => ipcRenderer.invoke('engines:detect', id),
   installEngine: (id) => ipcRenderer.invoke('engines:install', id),
+  checkHardware: () => ipcRenderer.invoke('engines:hardwareCheck'),
 
   // Ollama 专用
   ollamaStatus: () => ipcRenderer.invoke('ollama:status'),
@@ -49,4 +51,8 @@ contextBridge.exposeInMainWorld('api', {
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   copyText: (text) => ipcRenderer.invoke('clipboard:write', text),
   exportChat: (conv) => ipcRenderer.invoke('chat:export', conv),
+
+  // 文件上传
+  openFileDialog: () => ipcRenderer.invoke('chat:openFileDialog'),
+  readFiles: (paths) => ipcRenderer.invoke('chat:readFiles', paths),
 });

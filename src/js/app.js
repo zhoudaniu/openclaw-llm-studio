@@ -8,6 +8,7 @@ let isStreaming = false;
 let streamBuffer = '';
 let currentConvRef = null;  // 当前正在处理的对话引用
 let currentAiMsgRef = null; // 当前正在处理的 AI 消息引用
+let attachedFiles = [];     // 已附加的文件 [{name, size, content, ext}]
 
 // ============ 初始化 ============
 document.addEventListener('DOMContentLoaded', async () => {
@@ -308,12 +309,27 @@ function renderMessage(msg, index) {
   const label = isUser ? '你' : 'AI';
   const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '';
 
+  // 文件附件标记
+  let fileTag = '';
+  if (msg.files && msg.files.length > 0) {
+    fileTag = '<div class="msg-files">' + msg.files.map(f =>
+      `<span class="msg-file-tag">📄 ${escapeHtml(f.name)} <span style="opacity:0.5">(${formatFileSize(f.size)}${f.truncated ? `, 已读取${f.readPercent}%` : ''})</span></span>`
+    ).join('') + '</div>';
+  }
+
+  // 用户消息显示时去掉文件内容块，只保留用户输入的文字
+  let displayContent = msg.content;
+  if (isUser && msg.files && msg.files.length > 0) {
+    displayContent = msg.content.replace(/\n```\n[\s\S]*?```\s*$/g, '').trim();
+  }
+
   return `
     <div class="msg-row ${msg.role}">
       <div class="msg-avatar">${avatar}</div>
       <div class="msg-body">
         <div class="msg-meta">${label} ${time}</div>
-        <div class="msg-content">${isUser ? escapeHtml(msg.content) : renderMarkdown(msg.content)}</div>
+        ${fileTag}
+        <div class="msg-content">${isUser ? escapeHtml(displayContent) : renderMarkdown(msg.content)}</div>
         <div class="msg-actions">
           <button class="msg-action" onclick="copyMessage(${index})">复制</button>
           ${!isUser ? `<button class="msg-action" onclick="regenerateMessage(${index})">重新生成</button>` : ''}
@@ -340,13 +356,131 @@ function initChatInput() {
   });
 
   btn.addEventListener('click', () => {
-    if (isStreaming) return;
+    if (isStreaming) { stopStream(); return; }
     sendMessage();
+  });
+
+  // 附件按钮
+  document.getElementById('btnAttach')?.addEventListener('click', async () => {
+    const result = await api.openFileDialog();
+    if (result?.paths) addFiles(result.paths);
+  });
+
+  // 拖拽上传
+  const chatArea = document.getElementById('chatMessages');
+  const dropOverlay = document.getElementById('dropOverlay');
+  let dragCounter = 0;
+
+  chatArea?.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    dragCounter++;
+    if (dropOverlay) dropOverlay.classList.add('active');
+  });
+
+  chatArea?.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    dragCounter--;
+    if (dragCounter <= 0) {
+      dragCounter = 0;
+      if (dropOverlay) dropOverlay.classList.remove('active');
+    }
+  });
+
+  chatArea?.addEventListener('dragover', (e) => {
+    e.preventDefault();
+  });
+
+  chatArea?.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    dragCounter = 0;
+    if (dropOverlay) dropOverlay.classList.remove('active');
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      const paths = files.map(f => f.path).filter(Boolean);
+      if (paths.length > 0) addFiles(paths);
+    }
+  });
+
+  // 同时支持在输入区域拖拽
+  const inputArea = document.getElementById('chatInputArea');
+  inputArea?.addEventListener('dragenter', (e) => { e.preventDefault(); dragCounter++; if (dropOverlay) dropOverlay.classList.add('active'); });
+  inputArea?.addEventListener('dragleave', (e) => { e.preventDefault(); dragCounter--; if (dragCounter <= 0) { dragCounter = 0; if (dropOverlay) dropOverlay.classList.remove('active'); } });
+  inputArea?.addEventListener('dragover', (e) => { e.preventDefault(); });
+  inputArea?.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    dragCounter = 0;
+    if (dropOverlay) dropOverlay.classList.remove('active');
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      const paths = files.map(f => f.path).filter(Boolean);
+      if (paths.length > 0) addFiles(paths);
+    }
   });
 
   document.getElementById('btnNewChat')?.addEventListener('click', createConversation);
   document.getElementById('btnExportChat')?.addEventListener('click', exportChat);
   document.getElementById('btnClearChat')?.addEventListener('click', clearChat);
+}
+
+// ============ 文件上传 ============
+const MAX_FILES = 5;
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+async function addFiles(paths) {
+  if (attachedFiles.length >= MAX_FILES) {
+    toast(`最多同时附 ${MAX_FILES} 个文件`, 'error');
+    return;
+  }
+  const remaining = MAX_FILES - attachedFiles.length;
+  const toLoad = paths.slice(0, remaining);
+  if (paths.length > remaining) {
+    toast(`已达上限，仅添加前 ${remaining} 个文件`, 'error');
+  }
+
+  const results = await api.readFiles(toLoad);
+  for (const file of results) {
+    if (file.error) {
+      toast(`❌ ${file.name}: ${file.error}`, 'error');
+      continue;
+    }
+    if (file.truncated) {
+      toast(`📄 ${file.name} 内容过长，已读取前 ${file.readPercent}%`, 'error');
+    }
+    // 避免重复添加同名文件
+    attachedFiles = attachedFiles.filter(f => f.name !== file.name);
+    attachedFiles.push(file);
+  }
+  renderAttachmentBar();
+}
+
+function removeFile(index) {
+  attachedFiles.splice(index, 1);
+  renderAttachmentBar();
+}
+
+function renderAttachmentBar() {
+  const bar = document.getElementById('attachmentBar');
+  if (!bar) return;
+  if (attachedFiles.length === 0) {
+    bar.innerHTML = '';
+    bar.style.display = 'none';
+    return;
+  }
+  bar.style.display = 'flex';
+  bar.innerHTML = attachedFiles.map((f, i) => `
+    <div class="attachment-chip">
+      <span class="attachment-icon">📄</span>
+      <span class="attachment-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
+      <span class="attachment-size">${formatFileSize(f.size)}</span>
+      <button class="attachment-remove" onclick="removeFile(${i})" title="移除">✕</button>
+    </div>
+  `).join('');
 }
 
 function insertPrompt(text) {
@@ -359,25 +493,41 @@ function insertPrompt(text) {
 async function sendMessage() {
   const input = document.getElementById('chatInput');
   const text = input.value.trim();
-  if (!text || isStreaming) return;
+  if ((!text && attachedFiles.length === 0) || isStreaming) return;
 
   // 确保有对话
   if (!currentConvId) createConversation();
   const conv = conversations.find(c => c.id === currentConvId);
   if (!conv) return;
 
+  // 构建完整消息内容（文件 + 文本）
+  let fullContent = text;
+  let fileAttachments = null;
+  if (attachedFiles.length > 0) {
+    fileAttachments = attachedFiles.map(f => ({ name: f.name, size: f.size, ext: f.ext }));
+    const fileParts = attachedFiles.map(f =>
+      `\n\`\`\`\n${f.content}\n\`\`\``
+    );
+    // 用户问题在前，文件内容在后，模型更容易理解
+    fullContent = (text || '请分析以上文件') + '\n' + fileParts.join('\n');
+    console.log('[sendMessage] fullContent length:', fullContent.length);
+    console.log('[sendMessage] fullContent preview:', fullContent.slice(0, 200));
+  }
+
   // 添加用户消息
-  const userMsg = { role: 'user', content: text, timestamp: Date.now() };
+  const userMsg = { role: 'user', content: fullContent, timestamp: Date.now(), files: fileAttachments };
   conv.messages.push(userMsg);
 
   // 自动标题（取第一条消息前20字）
   if (conv.messages.length === 1) {
-    conv.title = text.slice(0, 20) + (text.length > 20 ? '...' : '');
+    conv.title = (text || (fileAttachments?.[0]?.name) || '新对话').slice(0, 20);
     renderConvList();
   }
 
   input.value = '';
   input.style.height = 'auto';
+  attachedFiles = [];
+  renderAttachmentBar();
   renderMessages();
 
   // 获取模型
@@ -405,9 +555,35 @@ async function sendMessage() {
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
   const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-  const sysContent = L('sysPrompt').replace('{date}', dateStr).replace('{time}', timeStr);
+  let sysContent = L('sysPrompt').replace('{date}', dateStr).replace('{time}', timeStr);
+
+  // 从最后一条用户消息中提取文件内容，放到系统提示词中
+  const lastUserMsg = conv.messages[conv.messages.length - 2]; // AI placeholder 前面那条
+  let userText = lastUserMsg?.content || text;
+  if (lastUserMsg?.files && lastUserMsg.files.length > 0) {
+    const fileMatch = lastUserMsg.content.match(/\n```\n([\s\S]*?)```\s*$/);
+    if (fileMatch) {
+      sysContent += '\n\n【用户上传的文件内容】以下是用户上传的文件，请根据用户的问题分析此文件，不要复述文件内容，直接回答问题：\n```\n' + fileMatch[1] + '\n```';
+      userText = lastUserMsg.content.replace(/\n```\n[\s\S]*?```\s*$/g, '').trim();
+    }
+  }
   const sysMsg = { role: 'system', content: sysContent };
-  const apiMessages = [sysMsg, ...conv.messages.slice(0, -1).map(m => ({ role: m.role, content: m.content }))];
+
+  // 构建 API 消息：用户消息只保留文字，文件内容已在系统提示中
+  const allMsgs = conv.messages.slice(0, -1);
+  const historyMsgs = allMsgs.map((m, i) => {
+    let content = m.content;
+    // 所有用户消息都去掉文件内容块
+    if (m.role === 'user' && m.files && m.files.length > 0) {
+      content = content.replace(/\n```\n[\s\S]*?```\s*$/g, '').trim();
+    }
+    return { role: m.role, content };
+  });
+  const apiMessages = [sysMsg, ...historyMsgs];
+
+  // Debug: 打印发送给 API 的最后一条用户消息
+  const debugLastUser = [...apiMessages].reverse().find(m => m.role === 'user');
+  console.log('[sendMessage] last user msg for API:', debugLastUser?.content?.slice(0, 300));
 
   if (isOllama) {
     // Ollama 本地调用
@@ -527,11 +703,20 @@ function setSendButtonLoading(loading) {
   const btn = document.getElementById('btnSend');
   if (loading) {
     btn.classList.add('loading');
-    btn.disabled = true;
+    btn.disabled = false; // 保持可点击，用于停止
+    btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+    btn.title = '停止生成';
   } else {
     btn.classList.remove('loading');
     btn.disabled = false;
+    btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" fill="currentColor"/></svg>';
+    btn.title = '发送';
   }
+}
+
+async function stopStream() {
+  await api.stopStream();
+  finishStreaming(null);
 }
 
 // ============ 消息操作 ============
@@ -741,7 +926,8 @@ async function renderEngines() {
   if (!grid) return;
   const engines = await api.listEngines();
 
-  grid.innerHTML = engines.map(eng => {
+  // 先渲染普通引擎卡片（同步）
+  const otherCards = engines.filter(eng => eng.id !== 'openclaw').map(eng => {
     const st = engineStatusCache[eng.id];
     const running = st?.status === 'running';
     const models = st?.models || [];
@@ -776,6 +962,12 @@ async function renderEngines() {
         <div id="engine-log-${eng.id}" style="margin-top:10px;max-height:120px;overflow-y:auto;font-size:11px;color:var(--text-3);font-family:monospace;background:var(--bg-0);border-radius:4px;padding:6px 8px;display:none;white-space:pre-wrap;"></div>
       </div>`;
   }).join('');
+
+  // 异步渲染小龙虾卡片
+  const openclawEng = engines.find(eng => eng.id === 'openclaw');
+  const openclawCard = openclawEng ? await renderOpenClawCard(openclawEng) : '';
+
+  grid.innerHTML = openclawCard + otherCards;
 
   await detectAllEngines(engines);
 }
@@ -912,6 +1104,209 @@ async function stopEngine(id) {
   }
 }
 
+// ============ 小龙虾 OpenClaw 专用卡片 ============
+let openclawInstalled = null; // 缓存安装状态
+
+async function renderOpenClawCard(eng) {
+  // 检测是否已安装
+  if (openclawInstalled === null) {
+    const detect = await api.detectEngine('openclaw');
+    openclawInstalled = detect.installed;
+  }
+  const installed = openclawInstalled;
+  const st = engineStatusCache['openclaw'];
+  const running = st?.status === 'running';
+  const statusClass = st ? (running ? 'running' : 'stopped') : (installed ? 'stopped' : 'checking');
+  const statusText = st ? (running ? L('running') : L('stopped')) : (installed ? '已安装' : '检测中...');
+
+  return `
+    <div class="engine-card" id="card-openclaw">
+      <div class="engine-head">
+        <span class="engine-name">${escapeHtml(eng.name)}</span>
+        <span class="engine-status ${statusClass}" id="est-openclaw">${statusText}</span>
+      </div>
+      <div class="engine-meta">
+        <div style="margin-bottom:6px;">
+          <span style="color:var(--text-3)">端口</span> ${eng.port}
+          <span style="color:var(--text-3);margin-left:12px">类型</span> ${eng.type}
+        </div>
+        <div style="color:var(--text-3);margin-bottom:6px;">本地推理引擎，推荐配合 Open WebUI 使用</div>
+        <div style="margin-bottom:4px;">
+          <span style="color:var(--text-3)">命令</span>
+          <code style="background:var(--bg-0);padding:2px 6px;border-radius:3px;font-size:11px;color:var(--orange)">${escapeHtml(eng.command || '未配置')}</code>
+        </div>
+      </div>
+      <div class="engine-actions">
+        ${running
+          ? `<button class="btn-danger-sm" onclick="stopEngine('openclaw')">⏹ 停止</button>`
+          : `<button class="btn-success-sm" onclick="startOpenClaw()" ${!installed ? 'disabled style="opacity:0.4"' : ''}>▶ 启动</button>`}
+        <button class="btn-sm btn-blue" onclick="detectOpenClawHardware()">🔍 检测</button>
+        ${!installed ? `<button class="btn-sm btn-orange" onclick="installOpenClaw()">🔧 配置</button>` : ''}
+      </div>
+      <div id="engine-log-openclaw" style="margin-top:10px;max-height:200px;overflow-y:auto;font-size:11px;color:var(--text-3);font-family:monospace;background:var(--bg-0);border-radius:4px;padding:6px 8px;display:none;white-space:pre-wrap;"></div>
+    </div>`;
+}
+
+// 启动小龙虾：先检测安装状态
+async function startOpenClaw() {
+  const statusEl = document.getElementById('est-openclaw');
+  if (statusEl) { statusEl.textContent = '检测中...'; statusEl.className = 'engine-status checking'; }
+
+  const detect = await api.detectEngine('openclaw');
+  if (!detect.installed) {
+    openclawInstalled = false;
+    toast('❌ 小龙虾 OpenClaw 未安装，请先点击「配置」安装', 'error');
+    renderEngines();
+    return;
+  }
+
+  openclawInstalled = true;
+  // 如果有安装路径但没配置命令，自动配置
+  if (detect.path) {
+    const engines = await api.listEngines();
+    const eng = engines.find(e => e.id === 'openclaw');
+    if (eng && !eng.command) {
+      await api.updateEngine('openclaw', { command: detect.path, autoDetect: true });
+    }
+  }
+
+  const result = await api.startEngine('openclaw');
+  if (result.error) {
+    toast(`❌ ${result.error}`, 'error');
+    if (statusEl) { statusEl.textContent = '启动失败'; statusEl.className = 'engine-status stopped'; }
+    return;
+  }
+
+  toast('⏳ 小龙虾正在启动... (PID: ' + result.pid + ')', 'success');
+  if (statusEl) { statusEl.textContent = '启动中...'; statusEl.className = 'engine-status checking'; }
+
+  setTimeout(async () => {
+    const st = await api.checkEngine('openclaw');
+    engineStatusCache['openclaw'] = st;
+    if (statusEl) {
+      statusEl.textContent = st.status === 'running' ? '运行中' : '未运行';
+      statusEl.className = `engine-status ${st.status === 'running' ? 'running' : 'stopped'}`;
+    }
+    if (st.status === 'running') toast('✅ 小龙虾已启动', 'success');
+  }, 3000);
+}
+
+// 硬件检测
+async function detectOpenClawHardware() {
+  const logEl = document.getElementById('engine-log-openclaw');
+  if (!logEl) return;
+  logEl.style.display = 'block';
+  logEl.innerHTML = '<span style="color:var(--yellow)">⏳ 正在检测硬件环境...</span>\n';
+
+  const hw = await api.checkHardware();
+
+  const lines = [
+    '══════════════════════════════════════',
+    '  🔍 硬件环境检测报告',
+    '══════════════════════════════════════',
+    '',
+    `  ${hw.gpu.available ? '✅' : '❌'} NVIDIA GPU:  ${hw.gpu.name}  (${hw.gpu.memory})`,
+    `  ${hw.python.available ? '✅' : '❌'} Python:      ${hw.python.version}`,
+    `  ${hw.memory.sufficient ? '✅' : '⚠️'} 内存:        ${hw.memory.total}  ${hw.memory.sufficient ? '(充足)' : '(建议 ≥ 8GB)'}`,
+    `  ${hw.disk.sufficient ? '✅' : '⚠️'} C盘剩余:     ${hw.disk.free}  ${hw.disk.sufficient ? '(充足)' : '(建议 ≥ 2GB)'}`,
+    '',
+    '──────────────────────────────────────',
+    `  综合评估: ${hw.overall ? '✅ 满足运行要求' : '⚠️ 部分条件不满足，可能影响运行'}`,
+    '══════════════════════════════════════',
+  ];
+
+  logEl.innerHTML = '';
+  for (let i = 0; i < lines.length; i++) {
+    await new Promise(r => setTimeout(r, 80));
+    logEl.innerHTML += escapeHtml(lines[i]) + '\n';
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+}
+
+// 一键安装小龙虾
+async function installOpenClaw() {
+  const logEl = document.getElementById('engine-log-openclaw');
+  if (!logEl) return;
+  logEl.style.display = 'block';
+
+  const steps = [
+    { icon: '🔍', text: '环境检查', status: 'pending' },
+    { icon: '📥', text: '下载安装包', status: 'pending' },
+    { icon: '🔧', text: '启动安装程序', status: 'pending' },
+    { icon: '✅', text: '安装完成', status: 'pending' },
+  ];
+
+  function renderSteps() {
+    logEl.innerHTML = '<div style="color:var(--text-2);margin-bottom:8px;font-size:12px;font-family:var(--text-font);">📦 小龙虾 OpenClaw 安装向导</div>';
+    steps.forEach(s => {
+      const icon = s.status === 'done' ? '✅' : s.status === 'active' ? '⏳' : s.status === 'error' ? '❌' : '⬜';
+      const color = s.status === 'done' ? 'var(--green)' : s.status === 'active' ? 'var(--yellow)' : s.status === 'error' ? 'var(--red)' : 'var(--text-3)';
+      logEl.innerHTML += `<div style="color:${color};margin:4px 0;font-size:12px;font-family:var(--text-font);">${icon} ${s.icon} ${s.text}${s.detail ? ` — ${s.detail}` : ''}</div>`;
+    });
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // Step 1: 环境检查
+  steps[0].status = 'active';
+  renderSteps();
+
+  const hw = await api.checkHardware();
+  if (!hw.python.available) {
+    steps[0].status = 'error';
+    steps[0].detail = '未检测到 Python 环境';
+    renderSteps();
+    toast('❌ 需要 Python 3.8+ 环境，请先安装 Python', 'error');
+    return;
+  }
+  steps[0].status = 'done';
+  steps[0].detail = `Python ${hw.python.version}`;
+  renderSteps();
+
+  await new Promise(r => setTimeout(r, 500));
+
+  // Step 2: 下载安装包
+  steps[1].status = 'active';
+  renderSteps();
+
+  const installResult = await api.installEngine('openclaw');
+
+  if (installResult.ok) {
+    steps[1].status = 'done';
+    steps[1].detail = '下载完成';
+    renderSteps();
+
+    await new Promise(r => setTimeout(r, 300));
+
+    // Step 3: 启动安装程序
+    steps[2].status = 'active';
+    renderSteps();
+    await new Promise(r => setTimeout(r, 500));
+    steps[2].status = 'done';
+    steps[2].detail = '请在弹出的安装向导中完成安装';
+    renderSteps();
+
+    await new Promise(r => setTimeout(r, 300));
+
+    // Step 4: 安装完成
+    steps[3].status = 'done';
+    renderSteps();
+
+    toast('✅ 安装程序已启动，请按向导完成安装', 'success');
+
+    // 安装后重新检测
+    setTimeout(async () => {
+      const detect = await api.detectEngine('openclaw');
+      openclawInstalled = detect.installed;
+      renderEngines();
+    }, 5000);
+  } else {
+    steps[1].status = 'error';
+    steps[1].detail = installResult.error || '下载失败';
+    renderSteps();
+    toast(`❌ ${installResult.error}`, 'error');
+  }
+}
+
 // 引擎配置编辑弹窗
 async function editEngine(id) {
   const engines = await api.listEngines();
@@ -1004,7 +1399,7 @@ const LANG_MAP = {
     exportChat: '导出对话', clearChat: '清空对话', copyMsg: '复制', regenerate: '重新生成',
     switchModel: '已切换到', selectModel: '选择模型',
     noKeyHint: '需配置Key', configured: '已配置',
-    sysPrompt: '当前日期时间：{date} {time}。请基于此时间回答用户问题。如果用户询问当前时间，请直接回答。',
+    sysPrompt: '当前日期时间：{date} {time}。请基于此时间回答用户问题。\n\n【核心规则】\n1. 如果用户提供了文件内容，直接回答用户的具体问题，严禁复述、引用、转述文件原文\n2. 回答要简短精炼，只给出用户问的答案\n3. 如果用户问"第N行是什么"，直接回答那一行的内容，不要展示其他内容',
     // 引擎页
     enginesTitle: '本地引擎管理', enginesSub: '一键启动 / 停止本地推理引擎，自动检测已安装的服务',
     port: '端口', type: '类型', cmd: '命令', notConfigured: '(未配置)',
