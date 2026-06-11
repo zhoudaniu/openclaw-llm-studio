@@ -1,280 +1,416 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
-  <title>OpenClaw LLM Studio</title>
-  <link rel="stylesheet" href="styles/main.css">
-  <link rel="stylesheet" href="styles/chat.css">
-</head>
-<body>
-  <!-- 标题栏 -->
-  <div class="titlebar">
-    <div class="titlebar-drag">
-      <span class="titlebar-brand">🦞 OpenClaw LLM Studio</span>
-    </div>
-    <div class="titlebar-btns">
-      <button class="tb-btn" onclick="api.minimize()"><svg width="12" height="12"><rect y="5" width="12" height="1.5" fill="currentColor"/></svg></button>
-      <button class="tb-btn" onclick="api.maximize()"><svg width="12" height="12"><rect x="1" y="1" width="10" height="10" stroke="currentColor" stroke-width="1.2" fill="none" rx="1"/></svg></button>
-      <button class="tb-btn tb-close" onclick="api.close()"><svg width="12" height="12"><line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" stroke-width="1.5"/><line x1="10" y1="2" x2="2" y2="10" stroke="currentColor" stroke-width="1.5"/></svg></button>
-    </div>
-  </div>
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+        />
+        <title>OpenClaw LLM Studio</title>
+        <link rel="stylesheet" href="styles/main.css" />
+        <link rel="stylesheet" href="styles/chat.css" />
+    </head>
+    <body>
+        <!-- 标题栏 -->
+        <div class="titlebar">
+            <div class="titlebar-drag">
+                <span class="titlebar-brand">🦞 OpenClaw LLM Studio</span>
+            </div>
+            <div class="titlebar-btns">
+                <button class="tb-btn" onclick="api.minimize()">
+                    <svg width="12" height="12"><rect y="5" width="12" height="1.5" fill="currentColor" /></svg>
+                </button>
+                <button class="tb-btn" onclick="api.maximize()">
+                    <svg width="12" height="12">
+                        <rect
+                            x="1"
+                            y="1"
+                            width="10"
+                            height="10"
+                            stroke="currentColor"
+                            stroke-width="1.2"
+                            fill="none"
+                            rx="1"
+                        />
+                    </svg>
+                </button>
+                <button class="tb-btn tb-close" onclick="api.close()">
+                    <svg width="12" height="12">
+                        <line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" stroke-width="1.5" />
+                        <line x1="10" y1="2" x2="2" y2="10" stroke="currentColor" stroke-width="1.5" />
+                    </svg>
+                </button>
+            </div>
+        </div>
 
-  <div class="app">
-    <!-- 左侧边栏 -->
-    <aside class="sidebar">
-      <!-- 导航标签 -->
-      <div class="sidebar-nav">
-        <button class="nav-btn active" data-tab="chat" title="对话">
-          <svg width="20" height="20" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z" fill="currentColor"/></svg>
-        </button>
-        <button class="nav-btn" data-tab="engines" title="引擎管理">
-          <svg width="20" height="20" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1115.6 12 3.6 3.6 0 0112 15.6z" fill="currentColor"/></svg>
-        </button>
-        <button class="nav-btn" data-tab="settings" title="设置">
-          <svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 22C6.49 22 2 17.51 2 12S6.49 2 12 2s10 4.04 10 9c0 3.31-2.69 6-6 6h-1.77c-.28 0-.5.22-.5.5 0 .12.05.23.13.33.41.47.64 1.06.64 1.67A2.5 2.5 0 0112 22zm0-18c-4.41 0-8 3.59-8 8s3.59 8 8 8c.28 0 .5-.22.5-.5a.54.54 0 00-.14-.35c-.41-.46-.63-1.05-.63-1.65a2.5 2.5 0 012.5-2.5H16c2.21 0 4-1.79 4-4 0-3.86-3.59-7-8-7z" fill="currentColor"/><circle cx="6.5" cy="11.5" r="1.5"/><circle cx="9.5" cy="7.5" r="1.5"/><circle cx="14.5" cy="7.5" r="1.5"/><circle cx="17.5" cy="11.5" r="1.5"/></svg>
-        </button>
-      </div>
-
-      <!-- 聊天列表区域 (仅 chat tab 显示) -->
-      <div class="chat-sidebar" id="chatSidebar">
-        <button class="btn-new-chat" id="btnNewChat">
-          <svg width="16" height="16" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" fill="currentColor"/></svg>
-          新对话
-        </button>
-        <div class="conv-list" id="convList"></div>
-      </div>
-    </aside>
-
-    <!-- 主内容区 -->
-    <main class="main-content">
-
-      <!-- ====== 聊天页面 ====== -->
-      <div class="tab-page active" id="tab-chat">
-        <!-- 模型选择栏 -->
-        <div class="chat-toolbar">
-          <div class="model-selector">
-            <label id="modelLabel">模型</label>
-            <div class="custom-dropdown" id="modelDropdown">
-              <button class="dd-trigger" id="ddTrigger" onclick="toggleDropdown()">
-                <span id="ddLabel">选择模型</span>
-                <svg width="12" height="12" viewBox="0 0 12 12"><path d="M3 5l3 3 3-3" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-              </button>
-              <div class="dd-cascade" id="ddCascade">
-                <div class="dd-left" id="ddLeft"></div>
-                <div class="dd-right">
-                  <div class="dd-right-header">
-                    <span class="dd-right-title" id="ddRightTitle">选择供应商</span>
-                    <span class="dd-right-badge" id="ddRightBadge"></span>
-                  </div>
-                  <div class="dd-right-url" id="ddRightUrl"></div>
-                  <div class="dd-models" id="ddModels"></div>
+        <div class="app">
+            <!-- 左侧边栏 -->
+            <aside class="sidebar">
+                <!-- 导航标签 -->
+                <div class="sidebar-nav">
+                    <button class="nav-btn active" data-tab="chat" title="对话">
+                        <svg width="20" height="20" viewBox="0 0 24 24">
+                            <path
+                                d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"
+                                fill="currentColor"
+                            />
+                        </svg>
+                    </button>
+                    <button class="nav-btn" data-tab="engines" title="引擎管理">
+                        <svg width="20" height="20" viewBox="0 0 24 24">
+                            <path
+                                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1115.6 12 3.6 3.6 0 0112 15.6z"
+                                fill="currentColor"
+                            />
+                        </svg>
+                    </button>
+                    <button class="nav-btn" data-tab="settings" title="设置">
+                        <svg width="20" height="20" viewBox="0 0 24 24">
+                            <path
+                                d="M12 22C6.49 22 2 17.51 2 12S6.49 2 12 2s10 4.04 10 9c0 3.31-2.69 6-6 6h-1.77c-.28 0-.5.22-.5.5 0 .12.05.23.13.33.41.47.64 1.06.64 1.67A2.5 2.5 0 0112 22zm0-18c-4.41 0-8 3.59-8 8s3.59 8 8 8c.28 0 .5-.22.5-.5a.54.54 0 00-.14-.35c-.41-.46-.63-1.05-.63-1.65a2.5 2.5 0 012.5-2.5H16c2.21 0 4-1.79 4-4 0-3.86-3.59-7-8-7z"
+                                fill="currentColor"
+                            />
+                            <circle cx="6.5" cy="11.5" r="1.5" />
+                            <circle cx="9.5" cy="7.5" r="1.5" />
+                            <circle cx="14.5" cy="7.5" r="1.5" />
+                            <circle cx="17.5" cy="11.5" r="1.5" />
+                        </svg>
+                    </button>
                 </div>
-              </div>
-            </div>
-          </div>
-          <div class="toolbar-actions">
-            <button class="tb-action" id="btnExportChat" title="导出对话">
-              <svg width="16" height="16" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" fill="currentColor"/></svg>
-            </button>
-            <button class="tb-action" id="btnClearChat" title="清空对话">
-              <svg width="16" height="16" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" fill="currentColor"/></svg>
-            </button>
-          </div>
-        </div>
 
-        <!-- 消息区域 -->
-        <div class="chat-messages" id="chatMessages">
-          <div class="welcome-screen" id="welcomeScreen">
-            <div class="welcome-logo">🦞</div>
-            <h2>OpenClaw LLM Studio</h2>
-            <p>支持 OpenAI · Claude · Gemini · DeepSeek · 通义千问 · 智谱GLM 等多种大模型</p>
-            <div class="welcome-tips">
-              <div class="tip" onclick="insertPrompt('帮我写一段Python快速排序代码')">💡 写一段快速排序代码</div>
-              <div class="tip" onclick="insertPrompt('用通俗的语言解释一下量子计算')">🎓 解释量子计算</div>
-              <div class="tip" onclick="insertPrompt('帮我起几个有创意的项目名字')">✨ 起几个创意项目名</div>
-            </div>
-          </div>
-          <div class="drop-overlay" id="dropOverlay">
-            <div class="drop-overlay-content">📄 拖放文件到这里</div>
-          </div>
-        </div>
+                <!-- 聊天列表区域 (仅 chat tab 显示) -->
+                <div class="chat-sidebar" id="chatSidebar">
+                    <button class="btn-new-chat" id="btnNewChat">
+                        <svg width="16" height="16" viewBox="0 0 24 24">
+                            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" fill="currentColor" />
+                        </svg>
+                        新对话
+                    </button>
+                    <div class="conv-list" id="convList"></div>
+                </div>
+            </aside>
 
-        <!-- 输入区域 -->
-        <div class="chat-input-area" id="chatInputArea">
-          <div class="attachment-bar" id="attachmentBar"></div>
-          <div class="input-wrapper">
-            <button class="attach-btn" id="btnAttach" title="上传文件">
+            <!-- 主内容区 -->
+            <main class="main-content">
+                <!-- ====== 聊天页面 ====== -->
+                <div class="tab-page active" id="tab-chat">
+                    <!-- 模型选择栏 -->
+                    <div class="chat-toolbar">
+                        <div class="model-selector">
+                            <label id="modelLabel">模型</label>
+                            <div class="custom-dropdown" id="modelDropdown">
+                                <button class="dd-trigger" id="ddTrigger" onclick="toggleDropdown()">
+                                    <span id="ddLabel">选择模型</span>
+                                    <svg width="12" height="12" viewBox="0 0 12 12">
+                                        <path d="M3 5l3 3 3-3" stroke="currentColor" stroke-width="1.5" fill="none" />
+                                    </svg>
+                                </button>
+                                <div class="dd-cascade" id="ddCascade">
+                                    <div class="dd-left" id="ddLeft"></div>
+                                    <div class="dd-right">
+                                        <div class="dd-right-header">
+                                            <span class="dd-right-title" id="ddRightTitle">选择供应商</span>
+                                            <span class="dd-right-badge" id="ddRightBadge"></span>
+                                        </div>
+                                        <div class="dd-right-url" id="ddRightUrl"></div>
+                                        <div class="dd-models" id="ddModels"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="toolbar-actions">
+                            <button class="tb-action" id="btnExportChat" title="导出对话">
+                                <svg width="16" height="16" viewBox="0 0 24 24">
+                                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" fill="currentColor" />
+                                </svg>
+                            </button>
+                            <button class="tb-action" id="btnClearChat" title="清空对话">
+                                <svg width="16" height="16" viewBox="0 0 24 24">
+                                    <path
+                                        d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                                        fill="currentColor"
+                                    />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 消息区域 -->
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="welcome-screen" id="welcomeScreen">
+                            <div class="welcome-logo">🦞</div>
+                            <h2>OpenClaw LLM Studio</h2>
+                            <p>支持 OpenAI · Claude · Gemini · DeepSeek · 通义千问 · 智谱GLM 等多种大模型</p>
+                            <div class="welcome-tips">
+                                <div class="tip" onclick="insertPrompt('帮我写一段Python快速排序代码')">
+                                    💡 写一段快速排序代码
+                                </div>
+                                <div class="tip" onclick="insertPrompt('用通俗的语言解释一下量子计算')">
+                                    🎓 解释量子计算
+                                </div>
+                                <div class="tip" onclick="insertPrompt('帮我起几个有创意的项目名字')">
+                                    ✨ 起几个创意项目名
+                                </div>
+                            </div>
+                        </div>
+                        <div class="drop-overlay" id="dropOverlay">
+                            <div class="drop-overlay-content">📄 拖放文件到这里</div>
+                        </div>
+                    </div>
+
+                    <!-- 输入区域 -->
+                    <div class="chat-input-area" id="chatInputArea">
+                        <div class="attachment-bar" id="attachmentBar"></div>
+                        <div class="input-wrapper">
+                            <!-- <button class="attach-btn" id="btnAttach" title="上传文件">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
-            </button>
-            <textarea id="chatInput" placeholder="输入消息... (Enter 发送, Shift+Enter 换行)" rows="1"></textarea>
-            <button class="btn-send" id="btnSend" title="发送">
-              <svg width="20" height="20" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" fill="currentColor"/></svg>
-            </button>
-          </div>
-          <div class="input-hint">
-            <span id="tokenInfo"></span>
-            <span id="modelInfoLabel">模型: <strong id="currentModelLabel">未选择</strong></span>
-          </div>
+            </button> -->
+                            <textarea
+                                id="chatInput"
+                                placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
+                                rows="1"
+                            ></textarea>
+                            <button class="btn-send" id="btnSend" title="发送">
+                                <svg width="20" height="20" viewBox="0 0 24 24">
+                                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" fill="currentColor" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="input-hint">
+                            <span id="tokenInfo"></span>
+                            <span id="modelInfoLabel">模型: <strong id="currentModelLabel">未选择</strong></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ====== 引擎管理页面 ====== -->
+                <div class="tab-page" id="tab-engines">
+                    <div
+                        class="page-header"
+                        style="display: flex; justify-content: space-between; align-items: flex-start"
+                    >
+                        <div>
+                            <h1>🔧 本地引擎管理</h1>
+                            <p class="subtitle">一键启动 / 停止本地推理引擎，自动检测已安装的服务</p>
+                        </div>
+                        <button class="btn-primary" onclick="openOllamaWizard()">🦙 Ollama 管理</button>
+                    </div>
+                    <div class="engine-grid" id="engineGrid"></div>
+                </div>
+
+                <!-- ====== 设置页面 ====== -->
+                <div class="tab-page" id="tab-settings">
+                    <div class="settings-layout">
+                        <!-- 左侧设置菜单 -->
+                        <div class="settings-nav">
+                            <div class="settings-nav-title">设置</div>
+                            <button
+                                class="snav-item active"
+                                data-settings="appearance"
+                                onclick="switchSettingsTab('appearance', this)"
+                            >
+                                <svg width="18" height="18" viewBox="0 0 24 24">
+                                    <path
+                                        d="M12 22C6.49 22 2 17.51 2 12S6.49 2 12 2s10 4.04 10 9c0 3.31-2.69 6-6 6h-1.77c-.28 0-.5.22-.5.5 0 .12.05.23.13.33.41.47.64 1.06.64 1.67A2.5 2.5 0 0112 22zm0-18c-4.41 0-8 3.59-8 8s3.59 8 8 8c.28 0 .5-.22.5-.5a.54.54 0 00-.14-.35c-.41-.46-.63-1.05-.63-1.65a2.5 2.5 0 012.5-2.5H16c2.21 0 4-1.79 4-4 0-3.86-3.59-7-8-7z"
+                                        fill="currentColor"
+                                    />
+                                    <circle cx="6.5" cy="11.5" r="1.5" />
+                                    <circle cx="9.5" cy="7.5" r="1.5" />
+                                    <circle cx="14.5" cy="7.5" r="1.5" />
+                                    <circle cx="17.5" cy="11.5" r="1.5" />
+                                </svg>
+                                <span>界面配色</span>
+                            </button>
+                            <button
+                                class="snav-item"
+                                data-settings="language"
+                                onclick="switchSettingsTab('language', this)"
+                            >
+                                <svg width="18" height="18" viewBox="0 0 24 24">
+                                    <path
+                                        d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"
+                                        fill="currentColor"
+                                    />
+                                </svg>
+                                <span>界面语言</span>
+                            </button>
+                            <button
+                                class="snav-item"
+                                data-settings="providers"
+                                onclick="switchSettingsTab('providers', this)"
+                            >
+                                <svg width="18" height="18" viewBox="0 0 24 24">
+                                    <path
+                                        d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"
+                                        fill="currentColor"
+                                    />
+                                </svg>
+                                <span>供应商管理</span>
+                            </button>
+                            <button
+                                class="snav-item"
+                                data-settings="params"
+                                onclick="switchSettingsTab('params', this)"
+                            >
+                                <svg width="18" height="18" viewBox="0 0 24 24">
+                                    <path
+                                        d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"
+                                        fill="currentColor"
+                                    />
+                                </svg>
+                                <span>对话参数</span>
+                            </button>
+                        </div>
+
+                        <!-- 右侧设置内容 -->
+                        <div class="settings-body">
+                            <!-- 界面配色 -->
+                            <div class="settings-panel active" id="sp-appearance">
+                                <h2 id="sp-title-appearance">🎨 界面配色</h2>
+                                <div class="theme-grid">
+                                    <div class="theme-card active" data-theme="dark" onclick="setTheme('dark')">
+                                        <div class="theme-preview dark-preview">
+                                            <div class="tp-bar"></div>
+                                            <div class="tp-content"></div>
+                                        </div>
+                                        <span class="theme-label">🌙 暗色</span>
+                                    </div>
+                                    <div class="theme-card" data-theme="light" onclick="setTheme('light')">
+                                        <div class="theme-preview light-preview">
+                                            <div class="tp-bar"></div>
+                                            <div class="tp-content"></div>
+                                        </div>
+                                        <span class="theme-label">☀️ 亮色</span>
+                                    </div>
+                                    <div class="theme-card" data-theme="system" onclick="setTheme('system')">
+                                        <div class="theme-preview system-preview">
+                                            <div class="tp-half dark-half"></div>
+                                            <div class="tp-half light-half"></div>
+                                        </div>
+                                        <span class="theme-label">💻 跟随系统</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 界面语言 -->
+                            <div class="settings-panel" id="sp-language">
+                                <h2 id="sp-title-language">🌐 界面语言</h2>
+                                <div class="lang-list">
+                                    <div class="lang-item active" data-lang="zh-CN" onclick="setLanguage('zh-CN')">
+                                        <span class="lang-flag">🇨🇳</span>
+                                        <div>
+                                            <div class="lang-name">简体中文</div>
+                                            <div class="lang-sub">Simplified Chinese</div>
+                                        </div>
+                                        <span class="lang-check">✓</span>
+                                    </div>
+                                    <div class="lang-item" data-lang="zh-TW" onclick="setLanguage('zh-TW')">
+                                        <span class="lang-flag">🇹🇼</span>
+                                        <div>
+                                            <div class="lang-name">繁體中文</div>
+                                            <div class="lang-sub">Traditional Chinese</div>
+                                        </div>
+                                        <span class="lang-check">✓</span>
+                                    </div>
+                                    <div class="lang-item" data-lang="en" onclick="setLanguage('en')">
+                                        <span class="lang-flag">🇺🇸</span>
+                                        <div>
+                                            <div class="lang-name">English</div>
+                                            <div class="lang-sub">English (US)</div>
+                                        </div>
+                                        <span class="lang-check">✓</span>
+                                    </div>
+                                    <div class="lang-item" data-lang="ja" onclick="setLanguage('ja')">
+                                        <span class="lang-flag">🇯🇵</span>
+                                        <div>
+                                            <div class="lang-name">日本語</div>
+                                            <div class="lang-sub">Japanese</div>
+                                        </div>
+                                        <span class="lang-check">✓</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 供应商管理 (复用现有) -->
+                            <div class="settings-panel" id="sp-providers">
+                                <div class="pm-header">
+                                    <h2>🔗 供应商管理</h2>
+                                    <button class="btn-primary" onclick="showAddProvider()">+ 添加新供应商</button>
+                                </div>
+                                <div class="provider-list" id="providerList"></div>
+                                <div class="provider-editor" id="providerEditor" style="display: none">
+                                    <div class="pe-header">
+                                        <button class="btn-back" onclick="closeEditor()">← 返回</button>
+                                        <h2 id="editorTitle">编辑供应商</h2>
+                                    </div>
+                                    <div class="pe-body" id="editorBody"></div>
+                                </div>
+                            </div>
+
+                            <!-- 对话参数 -->
+                            <div class="settings-panel" id="sp-params">
+                                <h2 id="sp-title-params">🎛️ 对话参数</h2>
+                                <div class="params-grid">
+                                    <div class="param-item">
+                                        <label>Temperature (创造性)</label>
+                                        <div class="range-row">
+                                            <input
+                                                type="range"
+                                                id="cfgTemperature"
+                                                min="0"
+                                                max="2"
+                                                step="0.1"
+                                                value="0.7"
+                                            />
+                                            <span id="cfgTemperatureVal">0.7</span>
+                                        </div>
+                                    </div>
+                                    <div class="param-item">
+                                        <label>Top P</label>
+                                        <div class="range-row">
+                                            <input type="range" id="cfgTopP" min="0" max="1" step="0.05" value="1.0" />
+                                            <span id="cfgTopPVal">1.0</span>
+                                        </div>
+                                    </div>
+                                    <div class="param-item">
+                                        <label>Max Tokens</label>
+                                        <input
+                                            type="number"
+                                            id="cfgMaxTokens"
+                                            value="8192"
+                                            min="256"
+                                            max="200000"
+                                            step="256"
+                                            class="input-num"
+                                        />
+                                    </div>
+                                    <div class="param-item">
+                                        <label>默认供应商</label>
+                                        <select id="cfgDefaultProvider" class="sel-text"></select>
+                                    </div>
+                                </div>
+                                <button class="btn-primary" style="margin-top: 16px" onclick="saveChatDefaults()">
+                                    💾 保存参数
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
         </div>
-      </div>
 
-      <!-- ====== 引擎管理页面 ====== -->
-      <div class="tab-page" id="tab-engines">
-        <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;">
-          <div>
-            <h1>🔧 本地引擎管理</h1>
-            <p class="subtitle">一键启动 / 停止本地推理引擎，自动检测已安装的服务</p>
-          </div>
-          <button class="btn-primary" onclick="openOllamaWizard()">🦙 Ollama 管理</button>
+        <!-- Toast -->
+        <div class="toast-box" id="toastBox"></div>
+
+        <!-- 模态弹窗 -->
+        <div class="modal-overlay" id="modalOverlay" style="display: none" onclick="closeModal()">
+            <div class="modal-box" onclick="event.stopPropagation()">
+                <div class="modal-title" id="modalTitle">提示</div>
+                <div class="modal-body" id="modalBody"></div>
+                <div class="modal-footer" id="modalFooter"></div>
+            </div>
         </div>
-        <div class="engine-grid" id="engineGrid"></div>
-      </div>
 
-      <!-- ====== 设置页面 ====== -->
-      <div class="tab-page" id="tab-settings">
-        <div class="settings-layout">
-          <!-- 左侧设置菜单 -->
-          <div class="settings-nav">
-            <div class="settings-nav-title">设置</div>
-            <button class="snav-item active" data-settings="appearance" onclick="switchSettingsTab('appearance', this)">
-              <svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 22C6.49 22 2 17.51 2 12S6.49 2 12 2s10 4.04 10 9c0 3.31-2.69 6-6 6h-1.77c-.28 0-.5.22-.5.5 0 .12.05.23.13.33.41.47.64 1.06.64 1.67A2.5 2.5 0 0112 22zm0-18c-4.41 0-8 3.59-8 8s3.59 8 8 8c.28 0 .5-.22.5-.5a.54.54 0 00-.14-.35c-.41-.46-.63-1.05-.63-1.65a2.5 2.5 0 012.5-2.5H16c2.21 0 4-1.79 4-4 0-3.86-3.59-7-8-7z" fill="currentColor"/><circle cx="6.5" cy="11.5" r="1.5"/><circle cx="9.5" cy="7.5" r="1.5"/><circle cx="14.5" cy="7.5" r="1.5"/><circle cx="17.5" cy="11.5" r="1.5"/></svg>
-              <span>界面配色</span>
-            </button>
-            <button class="snav-item" data-settings="language" onclick="switchSettingsTab('language', this)">
-              <svg width="18" height="18" viewBox="0 0 24 24"><path d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z" fill="currentColor"/></svg>
-              <span>界面语言</span>
-            </button>
-            <button class="snav-item" data-settings="providers" onclick="switchSettingsTab('providers', this)">
-              <svg width="18" height="18" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z" fill="currentColor"/></svg>
-              <span>供应商管理</span>
-            </button>
-            <button class="snav-item" data-settings="params" onclick="switchSettingsTab('params', this)">
-              <svg width="18" height="18" viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z" fill="currentColor"/></svg>
-              <span>对话参数</span>
-            </button>
-          </div>
-
-          <!-- 右侧设置内容 -->
-          <div class="settings-body">
-
-            <!-- 界面配色 -->
-            <div class="settings-panel active" id="sp-appearance">
-              <h2 id="sp-title-appearance">🎨 界面配色</h2>
-              <div class="theme-grid">
-                <div class="theme-card active" data-theme="dark" onclick="setTheme('dark')">
-                  <div class="theme-preview dark-preview">
-                    <div class="tp-bar"></div><div class="tp-content"></div>
-                  </div>
-                  <span class="theme-label">🌙 暗色</span>
-                </div>
-                <div class="theme-card" data-theme="light" onclick="setTheme('light')">
-                  <div class="theme-preview light-preview">
-                    <div class="tp-bar"></div><div class="tp-content"></div>
-                  </div>
-                  <span class="theme-label">☀️ 亮色</span>
-                </div>
-                <div class="theme-card" data-theme="system" onclick="setTheme('system')">
-                  <div class="theme-preview system-preview">
-                    <div class="tp-half dark-half"></div><div class="tp-half light-half"></div>
-                  </div>
-                  <span class="theme-label">💻 跟随系统</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- 界面语言 -->
-            <div class="settings-panel" id="sp-language">
-              <h2 id="sp-title-language">🌐 界面语言</h2>
-              <div class="lang-list">
-                <div class="lang-item active" data-lang="zh-CN" onclick="setLanguage('zh-CN')">
-                  <span class="lang-flag">🇨🇳</span>
-                  <div><div class="lang-name">简体中文</div><div class="lang-sub">Simplified Chinese</div></div>
-                  <span class="lang-check">✓</span>
-                </div>
-                <div class="lang-item" data-lang="zh-TW" onclick="setLanguage('zh-TW')">
-                  <span class="lang-flag">🇹🇼</span>
-                  <div><div class="lang-name">繁體中文</div><div class="lang-sub">Traditional Chinese</div></div>
-                  <span class="lang-check">✓</span>
-                </div>
-                <div class="lang-item" data-lang="en" onclick="setLanguage('en')">
-                  <span class="lang-flag">🇺🇸</span>
-                  <div><div class="lang-name">English</div><div class="lang-sub">English (US)</div></div>
-                  <span class="lang-check">✓</span>
-                </div>
-                <div class="lang-item" data-lang="ja" onclick="setLanguage('ja')">
-                  <span class="lang-flag">🇯🇵</span>
-                  <div><div class="lang-name">日本語</div><div class="lang-sub">Japanese</div></div>
-                  <span class="lang-check">✓</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- 供应商管理 (复用现有) -->
-            <div class="settings-panel" id="sp-providers">
-              <div class="pm-header">
-                <h2>🔗 供应商管理</h2>
-                <button class="btn-primary" onclick="showAddProvider()">+ 添加新供应商</button>
-              </div>
-              <div class="provider-list" id="providerList"></div>
-              <div class="provider-editor" id="providerEditor" style="display:none;">
-                <div class="pe-header">
-                  <button class="btn-back" onclick="closeEditor()">← 返回</button>
-                  <h2 id="editorTitle">编辑供应商</h2>
-                </div>
-                <div class="pe-body" id="editorBody"></div>
-              </div>
-            </div>
-
-            <!-- 对话参数 -->
-            <div class="settings-panel" id="sp-params">
-              <h2 id="sp-title-params">🎛️ 对话参数</h2>
-              <div class="params-grid">
-                <div class="param-item">
-                  <label>Temperature (创造性)</label>
-                  <div class="range-row">
-                    <input type="range" id="cfgTemperature" min="0" max="2" step="0.1" value="0.7">
-                    <span id="cfgTemperatureVal">0.7</span>
-                  </div>
-                </div>
-                <div class="param-item">
-                  <label>Top P</label>
-                  <div class="range-row">
-                    <input type="range" id="cfgTopP" min="0" max="1" step="0.05" value="1.0">
-                    <span id="cfgTopPVal">1.0</span>
-                  </div>
-                </div>
-                <div class="param-item">
-                  <label>Max Tokens</label>
-                  <input type="number" id="cfgMaxTokens" value="8192" min="256" max="200000" step="256" class="input-num">
-                </div>
-                <div class="param-item">
-                  <label>默认供应商</label>
-                  <select id="cfgDefaultProvider" class="sel-text"></select>
-                </div>
-              </div>
-              <button class="btn-primary" style="margin-top:16px" onclick="saveChatDefaults()">💾 保存参数</button>
-            </div>
-
-          </div>
-        </div>
-      </div>
-
-    </main>
-  </div>
-
-  <!-- Toast -->
-  <div class="toast-box" id="toastBox"></div>
-
-  <!-- 模态弹窗 -->
-  <div class="modal-overlay" id="modalOverlay" style="display:none;" onclick="closeModal()">
-    <div class="modal-box" onclick="event.stopPropagation()">
-      <div class="modal-title" id="modalTitle">提示</div>
-      <div class="modal-body" id="modalBody"></div>
-      <div class="modal-footer" id="modalFooter"></div>
-    </div>
-  </div>
-
-  <script src="js/app.js"></script>
-</body>
+        <script src="js/app.js"></script>
+    </body>
 </html>

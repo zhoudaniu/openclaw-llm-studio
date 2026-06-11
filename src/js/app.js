@@ -361,10 +361,10 @@ function initChatInput() {
   });
 
   // 附件按钮
-  document.getElementById('btnAttach')?.addEventListener('click', async () => {
-    const result = await api.openFileDialog();
-    if (result?.paths) addFiles(result.paths);
-  });
+//   document.getElementById('btnAttach')?.addEventListener('click', async () => {
+//     const result = await api.openFileDialog();
+//     if (result?.paths) addFiles(result.paths);
+//   });
 
   // 拖拽上传
   const chatArea = document.getElementById('chatMessages');
