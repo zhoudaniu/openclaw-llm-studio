@@ -1,62 +1,64 @@
 {
-  "name": "openclaw-llm-studio",
-  "version": "1.0.0",
-  "description": "OpenClaw - 大模型聚合平台 & 本地引擎管理",
-  "main": "main.js",
-  "author": "OpenClaw",
-  "license": "MIT",
-  "scripts": {
-    "start": "node start.js",
-    "dev": "node start.js --dev",
-    "build": "electron-builder --win --publish never",
-    "build:portable": "electron-builder --win portable --publish never",
-    "build:publish": "electron-builder --win --publish always"
-  },
-  "devDependencies": {
-    "cross-env": "^7.0.3",
-    "electron": "^28.3.3",
-    "electron-builder": "^24.9.1"
-  },
-  "dependencies": {
-    "better-sqlite3": "^11.0.0",
-    "electron-updater": "^6.8.9"
-  },
-  "build": {
-    "appId": "com.openclaw.llm-studio",
-    "productName": "OpenClaw LLM Studio",
-    "publish": [{
-      "provider": "github",
-      "owner": "zhoudaniu",
-      "repo": "openclaw-llm-studio"
-    }],
-    "directories": {
-      "output": "builds"
+    "name": "openclaw-llm-studio",
+    "version": "1.0.2",
+    "description": "OpenClaw - 大模型聚合平台 & 本地引擎管理",
+    "main": "main.js",
+    "author": "OpenClaw",
+    "license": "MIT",
+    "scripts": {
+        "start": "node start.js",
+        "dev": "node start.js --dev",
+        "build": "electron-builder --win --publish never",
+        "build:portable": "electron-builder --win portable --publish never",
+        "build:publish": "electron-builder --win --publish always"
     },
-    "files": [
-      "main.js",
-      "preload.js",
-      "src/**/*",
-      "data/**/*",
-      "!data/openclaw.db"
-    ],
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
+    "devDependencies": {
+        "cross-env": "^7.0.3",
+        "electron": "^28.3.3",
+        "electron-builder": "^24.9.1"
+    },
+    "dependencies": {
+        "better-sqlite3": "^11.0.0",
+        "electron-updater": "^6.8.9"
+    },
+    "build": {
+        "appId": "com.openclaw.llm-studio",
+        "productName": "OpenClaw LLM Studio",
+        "publish": [
+            {
+                "provider": "github",
+                "owner": "zhoudaniu",
+                "repo": "openclaw-llm-studio"
+            }
+        ],
+        "directories": {
+            "output": "builds"
+        },
+        "files": [
+            "main.js",
+            "preload.js",
+            "src/**/*",
+            "data/**/*",
+            "!data/openclaw.db"
+        ],
+        "win": {
+            "target": [
+                {
+                    "target": "nsis",
+                    "arch": [
+                        "x64"
+                    ]
+                }
+            ],
+            "icon": "src/assets/icons/icon.ico"
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true,
+            "artifactName": "OpenClaw-LLM-Studio-${version}-Setup.${ext}"
+        },
+        "portable": {
+            "artifactName": "OpenClaw-LLM-Studio-${version}-Portable.exe"
         }
-      ],
-      "icon": "src/assets/icons/icon.ico"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "artifactName": "OpenClaw-LLM-Studio-${version}-Setup.${ext}"
-    },
-    "portable": {
-      "artifactName": "OpenClaw-LLM-Studio-${version}-Portable.exe"
     }
-  }
 }

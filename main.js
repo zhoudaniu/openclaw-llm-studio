@@ -937,17 +937,33 @@ function createWindow() {
 }
 
 // ============ 自动更新 ============
+// 更新日志写入文件
+function updateLog(msg) {
+  const line = `[${new Date().toLocaleString()}] ${msg}\n`;
+  try { fs.appendFileSync(path.join(DATA_DIR, 'updater.log'), line); } catch (e) { /* */ }
+  console.log(line.trim());
+}
+
 function setupAutoUpdater() {
   if (isDev) return; // dev 模式跳过
+
+  updateLog('AutoUpdater 初始化...');
+  updateLog('当前版本: ' + app.getVersion());
 
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('error', (err) => {
-    console.error('AutoUpdater error:', err);
+    updateLog(`错误: ${err.message}`);
+    mainWindow?.webContents.send('engine:log', { id: 'updater', type: 'stderr', data: `更新检查失败: ${err.message}\n` });
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    updateLog('已是最新版本');
   });
 
   autoUpdater.on('update-available', async (info) => {
+    updateLog(`发现新版本: ${info.version}`);
     const result = await dialog.showMessageBox(mainWindow, {
       type: 'info',
       title: '发现新版本',
@@ -963,6 +979,7 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on('download-progress', (progress) => {
+    updateLog(`下载进度: ${Math.round(progress.percent)}%`);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.setProgressBar(progress.percent / 100);
     }
@@ -988,7 +1005,10 @@ function setupAutoUpdater() {
 
   // 启动后延迟 3 秒检查更新，避免影响启动速度
   setTimeout(() => {
-    autoUpdater.checkForUpdates().catch(() => {});
+    updateLog('开始检查更新...');
+    autoUpdater.checkForUpdates().catch((err) => {
+      updateLog(`检查更新失败: ${err.message}`);
+    });
   }, 3000);
 }
 
